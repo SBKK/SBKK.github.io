@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="问题：  当std::thread调用析构时，若thread没有正确退出（没有return），则会产生coredump，为什么？ 若在user space捕捉SIGABRT信号，thread异常退出为何还会产生coredump？  先来看看coredump的产生 kernel space内核在处理进程信号时，调用do_signal（arch&#x2F;arm&#x2F;kernel&#x2F;si">
+<meta property="og:type" content="article">
+<meta property="og:title" content="c++线程异常退出流程">
+<meta property="og:url" content="http://example.com/2022/02/19/c-abnormal-exit/index.html">
+<meta property="og:site_name" content="THEWY">
+<meta property="og:description" content="问题：  当std::thread调用析构时，若thread没有正确退出（没有return），则会产生coredump，为什么？ 若在user space捕捉SIGABRT信号，thread异常退出为何还会产生coredump？  先来看看coredump的产生 kernel space内核在处理进程信号时，调用do_signal（arch&#x2F;arm&#x2F;kernel&#x2F;si">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="http://example.com/2022/02/19/c-abnormal-exit/thread.png">
+<meta property="og:image" content="http://example.com/2022/02/19/c-abnormal-exit/terminate.png">
+<meta property="article:published_time" content="2022-02-19T03:21:44.000Z">
+<meta property="article:modified_time" content="2022-02-19T06:40:32.447Z">
+<meta property="article:author" content="WY">
+<meta property="article:tag" content="工作笔记">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/2022/02/19/c-abnormal-exit/thread.png">
+
+<link rel="canonical" href="http://example.com/2022/02/19/c-abnormal-exit/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>c++线程异常退出流程 | THEWY</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">THEWY</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/02/19/c-abnormal-exit/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="WY">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="THEWY">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          c++线程异常退出流程
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+              
+
+              <time title="Created: 2022-02-19 11:21:44 / Modified: 14:40:32" itemprop="dateCreated datePublished" datetime="2022-02-19T11:21:44+08:00">2022-02-19</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/C/" itemprop="url" rel="index"><span itemprop="name">C++</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>问题：</p>
+<ol>
+<li>当std::thread调用析构时，若thread没有正确退出（没有return），则会产生coredump，为什么？</li>
+<li>若在user space捕捉SIGABRT信号，thread异常退出为何还会产生coredump？</li>
+</ol>
+<p>先来看看coredump的产生</p>
+<h1 id="kernel-space"><a href="#kernel-space" class="headerlink" title="kernel space"></a>kernel space</h1><p>内核在处理进程信号时，调用<code>do_signal</code>（arch&#x2F;arm&#x2F;kernel&#x2F;signal.c）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">do_signal</span><span class="params">(<span class="keyword">struct</span> pt_regs *regs, <span class="type">int</span> syscall)</span></span><br></pre></td></tr></table></figure>
+
+<p>接着调用<code>get_signal</code>处理信号，</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (get_signal(&amp;ksig)) &#123;</span><br><span class="line">	handle_signal(&amp;ksig, regs);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>取出信号，若用户有绑定signal handler，则返回non-zero值，调用用户handler，不进行内核默认处理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">bool</span> <span class="title function_">get_signal</span><span class="params">(<span class="keyword">struct</span> ksignal *ksig)</span> </span><br><span class="line">...</span><br><span class="line">signr = dequeue_signal(current, &amp;current-&gt;blocked, &amp;ksig-&gt;info);</span><br><span class="line">...</span><br><span class="line"><span class="keyword">if</span> (ka-&gt;sa.sa_handler == SIG_IGN) <span class="comment">/* Do nothing.  */</span></span><br><span class="line">    <span class="keyword">continue</span>;</span><br><span class="line"><span class="keyword">if</span> (ka-&gt;sa.sa_handler != SIG_DFL) &#123;</span><br><span class="line">    <span class="comment">/* Run the handler.  */</span></span><br><span class="line">    ksig-&gt;ka = *ka; </span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (ka-&gt;sa.sa_flags &amp; SA_ONESHOT)</span><br><span class="line">        ka-&gt;sa.sa_handler = SIG_DFL;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">break</span>; <span class="comment">/* will return non-zero &quot;signr&quot; value */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>若用户没有绑定signal handler，则使用内核默认处理方式</p>
+<p>若signal在coredump信号列表定义内，则会产生coredump</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (sig_kernel_coredump(signr)) &#123;</span><br><span class="line">    <span class="keyword">if</span> (print_fatal_signals)</span><br><span class="line">        print_fatal_signal(ksig-&gt;info.si_signo);</span><br><span class="line">    proc_coredump_connector(current);</span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">       * If it was able to dump core, this kills all</span></span><br><span class="line"><span class="comment">       * other threads in the group and synchronizes with</span></span><br><span class="line"><span class="comment">       * their demise.  If we lost the race with another</span></span><br><span class="line"><span class="comment">       * thread getting here, it set group_exit_code</span></span><br><span class="line"><span class="comment">       * first and our do_group_exit call below will use</span></span><br><span class="line"><span class="comment">       * that value and ignore the one we pass it.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    do_coredump(&amp;ksig-&gt;info);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意SIGABRT在coredump信号定义内</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> SIG_KERNEL_COREDUMP_MASK (\</span></span><br><span class="line"><span class="meta">        rt_sigmask(SIGQUIT)   |  rt_sigmask(SIGILL)    | \</span></span><br><span class="line"><span class="meta">    rt_sigmask(SIGTRAP)   |  rt_sigmask(SIGABRT)   | \</span></span><br><span class="line"><span class="meta">        rt_sigmask(SIGFPE)    |  rt_sigmask(SIGSEGV)   | \</span></span><br><span class="line"><span class="meta">    rt_sigmask(SIGBUS)    |  rt_sigmask(SIGSYS)    | \</span></span><br><span class="line"><span class="meta">        rt_sigmask(SIGXCPU)   |  rt_sigmask(SIGXFSZ)   | \</span></span><br><span class="line"><span class="meta">    SIGEMT_MASK                    )</span></span><br></pre></td></tr></table></figure>
+
+<p>显然，线程退出时，进程收到了满足coredump的信号，才会产生coredump</p>
+<p>接着看user space的实现，线程析构时，发出了什么信号</p>
+<h1 id="user-space"><a href="#user-space" class="headerlink" title="user space"></a>user space</h1><p>局部对象实例在离开作用域时会被调用析构函数，std线程的析构函数如下：</p>
+<img src="/2022/02/19/c-abnormal-exit/thread.png" class="" title="thread">
+
+<p>若线程因一些原因如busy waiting而没有退出，其joinable会为true，则析构会调用<code>terminate</code></p>
+<img src="/2022/02/19/c-abnormal-exit/terminate.png" class="" title="terminate">
+
+<p><code>terminate</code>默认会调用<code>abort</code></p>
+<p>看下glibc中abort的实现：</p>
+<p><a target="_blank" rel="noopener" href="https://code.woboq.org/userspace/glibc/stdlib/abort.c.html">https://code.woboq.org/userspace/glibc/stdlib/abort.c.html</a></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* Send signal which possibly calls a user handler.  */</span></span><br><span class="line">  <span class="keyword">if</span> (stage == <span class="number">1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* This stage is special: we must allow repeated calls of</span></span><br><span class="line"><span class="comment">         `abort&#x27; when a user defined handler for SIGABRT is installed.</span></span><br><span class="line"><span class="comment">         This is risky since the `raise&#x27; implementation might also</span></span><br><span class="line"><span class="comment">         fail but I don&#x27;t see another possibility.  */</span></span><br><span class="line">      <span class="type">int</span> save_stage = stage;</span><br><span class="line">      stage = <span class="number">0</span>;</span><br><span class="line">      __libc_lock_unlock_recursive (lock);</span><br><span class="line">      raise (SIGABRT);</span><br><span class="line">      __libc_lock_lock_recursive (lock);</span><br><span class="line">      stage = save_stage + <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="comment">/* There was a handler installed.  Now remove it.  */</span></span><br><span class="line">  <span class="keyword">if</span> (stage == <span class="number">2</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      ++stage;</span><br><span class="line">      <span class="built_in">memset</span> (&amp;act, <span class="string">&#x27;\0&#x27;</span>, <span class="keyword">sizeof</span> (<span class="keyword">struct</span> sigaction));</span><br><span class="line">      act.sa_handler = SIG_DFL;</span><br><span class="line">      __sigfillset (&amp;act.sa_mask);</span><br><span class="line">      act.sa_flags = <span class="number">0</span>;</span><br><span class="line">      __sigaction (SIGABRT, &amp;act, <span class="literal">NULL</span>);</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="comment">/* Try again.  */</span></span><br><span class="line">  <span class="keyword">if</span> (stage == <span class="number">3</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      ++stage;</span><br><span class="line">      raise (SIGABRT);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，abort会先发送一次<code>SIGABRT</code></p>
+<p>然后清掉用户捕捉信号的handler</p>
+<p>再发送一次<code>SIGABRT</code></p>
+<h1 id="conclusion"><a href="#conclusion" class="headerlink" title="conclusion"></a>conclusion</h1><p>线程析构发生terminate时，会调用abort先产生一次SIGABRT</p>
+<p>内核发现用户若有注册handler，则调用用户handler，此时不产生coredump</p>
+<p>之后，abort函数清除掉用户的handler，再发一次ABRT信号</p>
+<p>此时内核发现没有用户handler，走默认处理函数，ARBT信号产生coredump  </p>
+<p><strong>所以线程异常退出产生coredump的原因是发出了SIGABRT信号</strong></p>
+<p><strong>而即使在user space设置了SIGABRT的捕捉信号，由于abort函数的机制，仍然会产生coredump</strong></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%B7%A5%E4%BD%9C%E7%AC%94%E8%AE%B0/" rel="tag"># 工作笔记</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/19/rust-study/" rel="prev" title="rust study">
+      <i class="fa fa-chevron-left"></i> rust study
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#kernel-space"><span class="nav-number">1.</span> <span class="nav-text">kernel space</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#user-space"><span class="nav-number">2.</span> <span class="nav-text">user space</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#conclusion"><span class="nav-number">3.</span> <span class="nav-text">conclusion</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">WY</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">3</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">WY</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

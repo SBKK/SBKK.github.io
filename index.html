@@ -155,6 +155,116 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/02/19/c-abnormal-exit/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="WY">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="THEWY">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/02/19/c-abnormal-exit/" class="post-title-link" itemprop="url">c++线程异常退出流程</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+              
+
+              <time title="Created: 2022-02-19 11:21:44 / Modified: 14:40:32" itemprop="dateCreated datePublished" datetime="2022-02-19T11:21:44+08:00">2022-02-19</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/C/" itemprop="url" rel="index"><span itemprop="name">C++</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>问题：</p>
+<ol>
+<li>当std::thread调用析构时，若thread没有正确退出（没有return），则会产生coredump，为什么？</li>
+<li>若在user space捕捉SIGABRT信号，thread异常退出为何还会产生coredump？</li>
+</ol>
+<p>先来看看coredump的产生</p>
+<h1 id="kernel-space"><a href="#kernel-space" class="headerlink" title="kernel space"></a>kernel space</h1><p>内核在处理进程信号时，调用<code>do_signal</code>（arch&#x2F;arm&#x2F;kernel&#x2F;signal.c）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">do_signal</span><span class="params">(<span class="keyword">struct</span> pt_regs *regs, <span class="type">int</span> syscall)</span></span><br></pre></td></tr></table></figure>
+
+<p>接着调用<code>get_signal</code>处理信号，</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (get_signal(&amp;ksig)) &#123;</span><br><span class="line">	handle_signal(&amp;ksig, regs);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>取出信号，若用户有绑定signal handler，则返回non-zero值，调用用户handler，不进行内核默认处理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">bool</span> <span class="title function_">get_signal</span><span class="params">(<span class="keyword">struct</span> ksignal *ksig)</span> </span><br><span class="line">...</span><br><span class="line">signr = dequeue_signal(current, &amp;current-&gt;blocked, &amp;ksig-&gt;info);</span><br><span class="line">...</span><br><span class="line"><span class="keyword">if</span> (ka-&gt;sa.sa_handler == SIG_IGN) <span class="comment">/* Do nothing.  */</span></span><br><span class="line">    <span class="keyword">continue</span>;</span><br><span class="line"><span class="keyword">if</span> (ka-&gt;sa.sa_handler != SIG_DFL) &#123;</span><br><span class="line">    <span class="comment">/* Run the handler.  */</span></span><br><span class="line">    ksig-&gt;ka = *ka; </span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (ka-&gt;sa.sa_flags &amp; SA_ONESHOT)</span><br><span class="line">        ka-&gt;sa.sa_handler = SIG_DFL;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">break</span>; <span class="comment">/* will return non-zero &quot;signr&quot; value */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>若用户没有绑定signal handler，则使用内核默认处理方式</p>
+<p>若signal在coredump信号列表定义内，则会产生coredump</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (sig_kernel_coredump(signr)) &#123;</span><br><span class="line">    <span class="keyword">if</span> (print_fatal_signals)</span><br><span class="line">        print_fatal_signal(ksig-&gt;info.si_signo);</span><br><span class="line">    proc_coredump_connector(current);</span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">       * If it was able to dump core, this kills all</span></span><br><span class="line"><span class="comment">       * other threads in the group and synchronizes with</span></span><br><span class="line"><span class="comment">       * their demise.  If we lost the race with another</span></span><br><span class="line"><span class="comment">       * thread getting here, it set group_exit_code</span></span><br><span class="line"><span class="comment">       * first and our do_group_exit call below will use</span></span><br><span class="line"><span class="comment">       * that value and ignore the one we pass it.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    do_coredump(&amp;ksig-&gt;info);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意SIGABRT在coredump信号定义内</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> SIG_KERNEL_COREDUMP_MASK (\</span></span><br><span class="line"><span class="meta">        rt_sigmask(SIGQUIT)   |  rt_sigmask(SIGILL)    | \</span></span><br><span class="line"><span class="meta">    rt_sigmask(SIGTRAP)   |  rt_sigmask(SIGABRT)   | \</span></span><br><span class="line"><span class="meta">        rt_sigmask(SIGFPE)    |  rt_sigmask(SIGSEGV)   | \</span></span><br><span class="line"><span class="meta">    rt_sigmask(SIGBUS)    |  rt_sigmask(SIGSYS)    | \</span></span><br><span class="line"><span class="meta">        rt_sigmask(SIGXCPU)   |  rt_sigmask(SIGXFSZ)   | \</span></span><br><span class="line"><span class="meta">    SIGEMT_MASK                    )</span></span><br></pre></td></tr></table></figure>
+
+<p>显然，线程退出时，进程收到了满足coredump的信号，才会产生coredump</p>
+<p>接着看user space的实现，线程析构时，发出了什么信号</p>
+<h1 id="user-space"><a href="#user-space" class="headerlink" title="user space"></a>user space</h1><p>局部对象实例在离开作用域时会被调用析构函数，std线程的析构函数如下：</p>
+<img src="/2022/02/19/c-abnormal-exit/thread.png" class="" title="thread">
+
+<p>若线程因一些原因如busy waiting而没有退出，其joinable会为true，则析构会调用<code>terminate</code></p>
+<img src="/2022/02/19/c-abnormal-exit/terminate.png" class="" title="terminate">
+
+<p><code>terminate</code>默认会调用<code>abort</code></p>
+<p>看下glibc中abort的实现：</p>
+<p><a target="_blank" rel="noopener" href="https://code.woboq.org/userspace/glibc/stdlib/abort.c.html">https://code.woboq.org/userspace/glibc/stdlib/abort.c.html</a></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* Send signal which possibly calls a user handler.  */</span></span><br><span class="line">  <span class="keyword">if</span> (stage == <span class="number">1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* This stage is special: we must allow repeated calls of</span></span><br><span class="line"><span class="comment">         `abort&#x27; when a user defined handler for SIGABRT is installed.</span></span><br><span class="line"><span class="comment">         This is risky since the `raise&#x27; implementation might also</span></span><br><span class="line"><span class="comment">         fail but I don&#x27;t see another possibility.  */</span></span><br><span class="line">      <span class="type">int</span> save_stage = stage;</span><br><span class="line">      stage = <span class="number">0</span>;</span><br><span class="line">      __libc_lock_unlock_recursive (lock);</span><br><span class="line">      raise (SIGABRT);</span><br><span class="line">      __libc_lock_lock_recursive (lock);</span><br><span class="line">      stage = save_stage + <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="comment">/* There was a handler installed.  Now remove it.  */</span></span><br><span class="line">  <span class="keyword">if</span> (stage == <span class="number">2</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      ++stage;</span><br><span class="line">      <span class="built_in">memset</span> (&amp;act, <span class="string">&#x27;\0&#x27;</span>, <span class="keyword">sizeof</span> (<span class="keyword">struct</span> sigaction));</span><br><span class="line">      act.sa_handler = SIG_DFL;</span><br><span class="line">      __sigfillset (&amp;act.sa_mask);</span><br><span class="line">      act.sa_flags = <span class="number">0</span>;</span><br><span class="line">      __sigaction (SIGABRT, &amp;act, <span class="literal">NULL</span>);</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="comment">/* Try again.  */</span></span><br><span class="line">  <span class="keyword">if</span> (stage == <span class="number">3</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      ++stage;</span><br><span class="line">      raise (SIGABRT);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，abort会先发送一次<code>SIGABRT</code></p>
+<p>然后清掉用户捕捉信号的handler</p>
+<p>再发送一次<code>SIGABRT</code></p>
+<h1 id="conclusion"><a href="#conclusion" class="headerlink" title="conclusion"></a>conclusion</h1><p>线程析构发生terminate时，会调用abort先产生一次SIGABRT</p>
+<p>内核发现用户若有注册handler，则调用用户handler，此时不产生coredump</p>
+<p>之后，abort函数清除掉用户的handler，再发一次ABRT信号</p>
+<p>此时内核发现没有用户handler，走默认处理函数，ARBT信号产生coredump  </p>
+<p><strong>所以线程异常退出产生coredump的原因是发出了SIGABRT信号</strong></p>
+<p><strong>而即使在user space设置了SIGABRT的捕捉信号，由于abort函数的机制，仍然会产生coredump</strong></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
     <link itemprop="mainEntityOfPage" href="http://example.com/2022/02/19/rust-study/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -217,23 +327,19 @@
 </li>
 <li><p>没有GC，不用care alloc和free，以ownership和lifetime替代</p>
 <p>GC: garbage collection，显式申请内存，但不需要主动释放，GC在程序跑的时候会时不时的去找没有在用的memory并释放它 (Java)</p>
-<p>alloc/free: alloc和free要配对，显式申请的内存要主动的释放 (C)</p>
+<p>alloc&#x2F;free: alloc和free要配对，显式申请的内存要主动的释放 (C)</p>
 <p>rust不需要以上两种，利用ownership和lifetime的特性，编译时就会检查很多要求，能编译过就没有内存问题（不存在空指针，内存泄露）</p>
 </li>
-</ul>
-<ul>
 <li><p>零开销抽象zero cost abstraction 如C++</p>
 <p>提供面向对象，高级抽象，多态 （trait，impl，generic…. 类比C++ class，template，interface）</p>
 </li>
-</ul>
-<ul>
 <li><p>强大的测试系统</p>
 <p>[test] ，单元测试的极致，在开发过程中可以测试任何一段code</p>
 </li>
 </ul>
 <h2 id="安装"><a href="#安装" class="headerlink" title="安装"></a>安装</h2><p>官网安装方法：</p>
 <p>使用rustup，The Rust toolchain installer</p>
-<p>获取rustup并运行：curl –proto ‘=https’ –tlsv1.2 -sSf <a target="_blank" rel="noopener" href="https://sh.rustup.rs/">https://sh.rustup.rs</a> | sh</p>
+<p>获取rustup并运行：curl –proto ‘&#x3D;https’ –tlsv1.2 -sSf <a target="_blank" rel="noopener" href="https://sh.rustup.rs/">https://sh.rustup.rs</a> | sh</p>
 <p>install path</p>
 <p>rustc –version 检查安装成功</p>
 <p>编译器为rustc，使用rustup可以配置toolchain等</p>
@@ -244,9 +350,9 @@
 <p>里面会自动生成 配置文件和 主函数main.rs</p>
 <p>Cargo.toml 是配置文件，类似于Makefile</p>
 <blockquote>
-<p>  [package]<br>  name = “dbc”<br>  version = “0.1.0”<br>  authors = [“xxx”]<br>  edition = “2018”</p>
-<p>  [dependencies]<br>  can-dbc = { path = “./can-dbc” }<br>  clap = “2.33”<br>  derive_more = “0.99”<br>  socketcan = “1.7”</p>
-<p>[dependencies.nom]<br>  version = “4.2”<br>  features = [“verbose-errors”]</p>
+<p>  [package]<br>  name &#x3D; “dbc”<br>  version &#x3D; “0.1.0”<br>  authors &#x3D; [“xxx”]<br>  edition &#x3D; “2018”</p>
+<p>  [dependencies]<br>  can-dbc &#x3D; { path &#x3D; “.&#x2F;can-dbc” }<br>  clap &#x3D; “2.33”<br>  derive_more &#x3D; “0.99”<br>  socketcan &#x3D; “1.7”</p>
+<p>[dependencies.nom]<br>  version &#x3D; “4.2”<br>  features &#x3D; [“verbose-errors”]</p>
 </blockquote>
 <p>其中[dependecies] 定义了 依赖的库</p>
 <p>执行cargo build即可编译出可执行文件或lib</p>
@@ -276,7 +382,8 @@
 <p>自定义：</p>
 <ul>
 <li><p><code>struct</code>: define a structure</p>
-<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Person</span> &#123;</span><br><span class="line">    name: <span class="type">String</span>,</span><br><span class="line">    age: <span class="type">u8</span>,</span><br><span class="line">&#125;</span><br><span class="line">  </span><br><span class="line"><span class="comment">// A unit struct</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Unit</span>; <span class="comment">//useful for generics(template)</span></span><br><span class="line">  </span><br><span class="line"><span class="comment">// A tuple struct</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Pair</span>(<span class="type">i32</span>, <span class="type">f32</span>);</span><br><span class="line">  </span><br><span class="line"><span class="comment">// A struct with two fields</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Point</span> &#123;</span><br><span class="line">    x: <span class="type">f32</span>,</span><br><span class="line">    y: <span class="type">f32</span>,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Person</span> &#123;</span><br><span class="line">    name: <span class="type">String</span>,</span><br><span class="line">    age: <span class="type">u8</span>,</span><br><span class="line">&#125;</span><br><span class="line">  </span><br><span class="line"><span class="comment">// A unit struct</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Unit</span>; <span class="comment">//useful for generics(template)</span></span><br><span class="line">  </span><br><span class="line"><span class="comment">// A tuple struct</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Pair</span>(<span class="type">i32</span>, <span class="type">f32</span>);</span><br><span class="line">  </span><br><span class="line"><span class="comment">// A struct with two fields</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Point</span> &#123;</span><br><span class="line">    x: <span class="type">f32</span>,</span><br><span class="line">    y: <span class="type">f32</span>,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
 <li><p><code>enum</code>: define an enumeration</p>
 <figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">enum</span> <span class="title class_">WebEvent</span> &#123;</span><br><span class="line">    <span class="comment">// An `enum` may either be `unit-like`,</span></span><br><span class="line">    PageLoad,</span><br><span class="line">    PageUnload,</span><br><span class="line">    <span class="comment">// like tuple structs,</span></span><br><span class="line">    <span class="title function_ invoke__">KeyPress</span>(<span class="type">char</span>),</span><br><span class="line">    <span class="title function_ invoke__">Paste</span>(<span class="type">String</span>),</span><br><span class="line">    <span class="comment">// or c-like structures.</span></span><br><span class="line">    Click &#123; x: <span class="type">i64</span>, y: <span class="type">i64</span> &#125;,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
 </ul>
@@ -297,13 +404,16 @@
 <figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> <span class="variable">z</span> = &#123;</span><br><span class="line">    <span class="comment">// The semicolon suppresses this expression and `()` is assigned to `z`</span></span><br><span class="line">    <span class="number">2</span> * x;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
 
 <h3 id="控制"><a href="#控制" class="headerlink" title="控制"></a>控制</h3><ul>
-<li><p>if/else</p>
-<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">   <span class="keyword">let</span> <span class="variable">n</span> = <span class="number">5</span>;</span><br><span class="line">  </span><br><span class="line"><span class="comment">//if 后面接 bool condition</span></span><br><span class="line">   <span class="keyword">if</span> n &lt; <span class="number">0</span> &#123;</span><br><span class="line">       <span class="built_in">print!</span>(<span class="string">&quot;&#123;&#125; is negative&quot;</span>, n);</span><br><span class="line">   &#125; <span class="keyword">else</span> <span class="keyword">if</span> n &gt; <span class="number">0</span> &#123;</span><br><span class="line">       <span class="built_in">print!</span>(<span class="string">&quot;&#123;&#125; is positive&quot;</span>, n);</span><br><span class="line">   &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       <span class="built_in">print!</span>(<span class="string">&quot;&#123;&#125; is zero&quot;</span>, n);</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure></li>
-<li><p>loop/while</p>
-<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">loop</span> &#123;</span><br><span class="line">   	<span class="comment">//do something</span></span><br><span class="line">       <span class="keyword">continue</span>;</span><br><span class="line">       <span class="comment">//</span></span><br><span class="line">       <span class="keyword">break</span>;</span><br><span class="line">&#125;</span><br><span class="line">  </span><br><span class="line"><span class="comment">//loop with conditon</span></span><br><span class="line"><span class="keyword">while</span> n &lt; <span class="number">101</span> &#123;</span><br><span class="line">	<span class="comment">//do something</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<li><p>if&#x2F;else</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">   <span class="keyword">let</span> <span class="variable">n</span> = <span class="number">5</span>;</span><br><span class="line">  </span><br><span class="line"><span class="comment">//if 后面接 bool condition</span></span><br><span class="line">   <span class="keyword">if</span> n &lt; <span class="number">0</span> &#123;</span><br><span class="line">       <span class="built_in">print!</span>(<span class="string">&quot;&#123;&#125; is negative&quot;</span>, n);</span><br><span class="line">   &#125; <span class="keyword">else</span> <span class="keyword">if</span> n &gt; <span class="number">0</span> &#123;</span><br><span class="line">       <span class="built_in">print!</span>(<span class="string">&quot;&#123;&#125; is positive&quot;</span>, n);</span><br><span class="line">   &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       <span class="built_in">print!</span>(<span class="string">&quot;&#123;&#125; is zero&quot;</span>, n);</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>loop&#x2F;while</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">loop</span> &#123;</span><br><span class="line">   	<span class="comment">//do something</span></span><br><span class="line">       <span class="keyword">continue</span>;</span><br><span class="line">       <span class="comment">//</span></span><br><span class="line">       <span class="keyword">break</span>;</span><br><span class="line">&#125;</span><br><span class="line">  </span><br><span class="line"><span class="comment">//loop with conditon</span></span><br><span class="line"><span class="keyword">while</span> n &lt; <span class="number">101</span> &#123;</span><br><span class="line">	<span class="comment">//do something</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
 <li><p>for and range</p>
 <p>使用<code>for in</code>接iterator</p>
-<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">   <span class="keyword">let</span> <span class="variable">names</span> = <span class="built_in">vec!</span>[<span class="string">&quot;Bob&quot;</span>, <span class="string">&quot;Frank&quot;</span>, <span class="string">&quot;Ferris&quot;</span>];</span><br><span class="line">  </span><br><span class="line">   <span class="keyword">for</span> <span class="variable">name</span> <span class="keyword">in</span> names.<span class="title function_ invoke__">iter</span>() &#123;</span><br><span class="line">       <span class="built_in">println!</span>(<span class="string">&quot;Hello &#123;&#125;&quot;</span>, name);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">   <span class="keyword">let</span> <span class="variable">names</span> = <span class="built_in">vec!</span>[<span class="string">&quot;Bob&quot;</span>, <span class="string">&quot;Frank&quot;</span>, <span class="string">&quot;Ferris&quot;</span>];</span><br><span class="line">  </span><br><span class="line">   <span class="keyword">for</span> <span class="variable">name</span> <span class="keyword">in</span> names.<span class="title function_ invoke__">iter</span>() &#123;</span><br><span class="line">       <span class="built_in">println!</span>(<span class="string">&quot;Hello &#123;&#125;&quot;</span>, name);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
 <li><p><strong>match</strong></p>
 <p>类似于C语言的<code>switch</code></p>
 <figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> <span class="variable">number</span> = <span class="number">13</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">match</span> number &#123;</span><br><span class="line">    <span class="comment">// Match a single value</span></span><br><span class="line">    <span class="number">1</span> =&gt; <span class="built_in">println!</span>(<span class="string">&quot;One!&quot;</span>),</span><br><span class="line">    <span class="comment">// Match several values</span></span><br><span class="line">    <span class="number">2</span> | <span class="number">3</span> | <span class="number">5</span> | <span class="number">7</span> | <span class="number">11</span> =&gt; <span class="built_in">println!</span>(<span class="string">&quot;This is a prime&quot;</span>),</span><br><span class="line">    <span class="comment">// Match an inclusive range</span></span><br><span class="line">    <span class="number">13</span>..=<span class="number">19</span> =&gt; <span class="built_in">println!</span>(<span class="string">&quot;A teen&quot;</span>),</span><br><span class="line">    <span class="comment">// Handle the rest of cases</span></span><br><span class="line">    _ =&gt; <span class="built_in">println!</span>(<span class="string">&quot;Ain&#x27;t special&quot;</span>),</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
@@ -311,9 +421,11 @@
 <p>match可以做<strong>destructing</strong>，很有用哦～</p>
 <ul>
 <li><p>Destructuring Tuples</p>
-<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> <span class="variable">triple</span> = (<span class="number">0</span>, -<span class="number">2</span>, <span class="number">3</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// Match can be used to destructure a tuple</span></span><br><span class="line"><span class="keyword">match</span> triple &#123;</span><br><span class="line">    <span class="comment">// Destructure the second and third elements</span></span><br><span class="line">    (<span class="number">0</span>, y, z) =&gt; <span class="built_in">println!</span>(<span class="string">&quot;First is `0`, `y` is &#123;:?&#125;, and `z` is &#123;:?&#125;&quot;</span>, y, z),</span><br><span class="line">    (<span class="number">1</span>, ..)  =&gt; <span class="built_in">println!</span>(<span class="string">&quot;First is `1` and the rest doesn&#x27;t matter&quot;</span>),</span><br><span class="line">    <span class="comment">// `..` can be the used ignore the rest of the tuple</span></span><br><span class="line">    _      =&gt; <span class="built_in">println!</span>(<span class="string">&quot;It doesn&#x27;t matter what they are&quot;</span>),</span><br><span class="line">    <span class="comment">// `_` means don&#x27;t bind the value to a variable</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> <span class="variable">triple</span> = (<span class="number">0</span>, -<span class="number">2</span>, <span class="number">3</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// Match can be used to destructure a tuple</span></span><br><span class="line"><span class="keyword">match</span> triple &#123;</span><br><span class="line">    <span class="comment">// Destructure the second and third elements</span></span><br><span class="line">    (<span class="number">0</span>, y, z) =&gt; <span class="built_in">println!</span>(<span class="string">&quot;First is `0`, `y` is &#123;:?&#125;, and `z` is &#123;:?&#125;&quot;</span>, y, z),</span><br><span class="line">    (<span class="number">1</span>, ..)  =&gt; <span class="built_in">println!</span>(<span class="string">&quot;First is `1` and the rest doesn&#x27;t matter&quot;</span>),</span><br><span class="line">    <span class="comment">// `..` can be the used ignore the rest of the tuple</span></span><br><span class="line">    _      =&gt; <span class="built_in">println!</span>(<span class="string">&quot;It doesn&#x27;t matter what they are&quot;</span>),</span><br><span class="line">    <span class="comment">// `_` means don&#x27;t bind the value to a variable</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
 <li><p>Destructuring Enums</p>
-<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">enum</span> <span class="title class_">Color</span> &#123;</span><br><span class="line">    <span class="comment">// These 3 are specified solely by their name.</span></span><br><span class="line">    Red,</span><br><span class="line">    Blue,</span><br><span class="line">    Green,</span><br><span class="line">    <span class="comment">// These likewise tie `u32` tuples to different names: color models.</span></span><br><span class="line">    <span class="title function_ invoke__">RGB</span>(<span class="type">u32</span>, <span class="type">u32</span>, <span class="type">u32</span>),</span><br><span class="line">    <span class="title function_ invoke__">HSV</span>(<span class="type">u32</span>, <span class="type">u32</span>, <span class="type">u32</span>),</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">fn</span> <span class="title function_">main</span>() &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">color</span> = Color::<span class="title function_ invoke__">RGB</span>(<span class="number">122</span>, <span class="number">17</span>, <span class="number">40</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// An `enum` can be destructured using a `match`.</span></span><br><span class="line">    <span class="keyword">match</span> color &#123;</span><br><span class="line">        Color::Red   =&gt; <span class="built_in">println!</span>(<span class="string">&quot;The color is Red!&quot;</span>),</span><br><span class="line">        Color::Blue  =&gt; <span class="built_in">println!</span>(<span class="string">&quot;The color is Blue!&quot;</span>),</span><br><span class="line">        Color::Green =&gt; <span class="built_in">println!</span>(<span class="string">&quot;The color is Green!&quot;</span>),</span><br><span class="line">        Color::<span class="title function_ invoke__">RGB</span>(r, g, b) =&gt;</span><br><span class="line">            <span class="built_in">println!</span>(<span class="string">&quot;Red: &#123;&#125;, green: &#123;&#125;, and blue: &#123;&#125;!&quot;</span>, r, g, b),</span><br><span class="line">        Color::<span class="title function_ invoke__">HSV</span>(h, s, v) =&gt;</span><br><span class="line">            <span class="built_in">println!</span>(<span class="string">&quot;Hue: &#123;&#125;, saturation: &#123;&#125;, value: &#123;&#125;!&quot;</span>, h, s, v),</span><br><span class="line">        Color::<span class="title function_ invoke__">HSL</span>(h, s, l) =&gt;</span><br><span class="line">            <span class="built_in">println!</span>(<span class="string">&quot;Hue: &#123;&#125;, saturation: &#123;&#125;, lightness: &#123;&#125;!&quot;</span>, h, s, l),</span><br><span class="line">        <span class="comment">// Don&#x27;t need another arm because all variants have been examined</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">enum</span> <span class="title class_">Color</span> &#123;</span><br><span class="line">    <span class="comment">// These 3 are specified solely by their name.</span></span><br><span class="line">    Red,</span><br><span class="line">    Blue,</span><br><span class="line">    Green,</span><br><span class="line">    <span class="comment">// These likewise tie `u32` tuples to different names: color models.</span></span><br><span class="line">    <span class="title function_ invoke__">RGB</span>(<span class="type">u32</span>, <span class="type">u32</span>, <span class="type">u32</span>),</span><br><span class="line">    <span class="title function_ invoke__">HSV</span>(<span class="type">u32</span>, <span class="type">u32</span>, <span class="type">u32</span>),</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">fn</span> <span class="title function_">main</span>() &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">color</span> = Color::<span class="title function_ invoke__">RGB</span>(<span class="number">122</span>, <span class="number">17</span>, <span class="number">40</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// An `enum` can be destructured using a `match`.</span></span><br><span class="line">    <span class="keyword">match</span> color &#123;</span><br><span class="line">        Color::Red   =&gt; <span class="built_in">println!</span>(<span class="string">&quot;The color is Red!&quot;</span>),</span><br><span class="line">        Color::Blue  =&gt; <span class="built_in">println!</span>(<span class="string">&quot;The color is Blue!&quot;</span>),</span><br><span class="line">        Color::Green =&gt; <span class="built_in">println!</span>(<span class="string">&quot;The color is Green!&quot;</span>),</span><br><span class="line">        Color::<span class="title function_ invoke__">RGB</span>(r, g, b) =&gt;</span><br><span class="line">            <span class="built_in">println!</span>(<span class="string">&quot;Red: &#123;&#125;, green: &#123;&#125;, and blue: &#123;&#125;!&quot;</span>, r, g, b),</span><br><span class="line">        Color::<span class="title function_ invoke__">HSV</span>(h, s, v) =&gt;</span><br><span class="line">            <span class="built_in">println!</span>(<span class="string">&quot;Hue: &#123;&#125;, saturation: &#123;&#125;, value: &#123;&#125;!&quot;</span>, h, s, v),</span><br><span class="line">        Color::<span class="title function_ invoke__">HSL</span>(h, s, l) =&gt;</span><br><span class="line">            <span class="built_in">println!</span>(<span class="string">&quot;Hue: &#123;&#125;, saturation: &#123;&#125;, lightness: &#123;&#125;!&quot;</span>, h, s, l),</span><br><span class="line">        <span class="comment">// Don&#x27;t need another arm because all variants have been examined</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
 <li><p>Destructuring Structures</p>
 <figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Foo</span> &#123;</span><br><span class="line">    x: (<span class="type">u32</span>, <span class="type">u32</span>),</span><br><span class="line">    y: <span class="type">u32</span>,</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">let</span> <span class="variable">foo</span> = Foo &#123; x: (<span class="number">1</span>, <span class="number">2</span>), y: <span class="number">3</span> &#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">match</span> foo &#123;</span><br><span class="line">    Foo &#123; x: (<span class="number">1</span>, b), y &#125; =&gt; <span class="built_in">println!</span>(<span class="string">&quot;First of x is 1, b = &#123;&#125;,  y = &#123;&#125; &quot;</span>, b, y),</span><br><span class="line"></span><br><span class="line">    <span class="comment">// you can destructure structs and rename the variables,</span></span><br><span class="line">    <span class="comment">// the order is not important</span></span><br><span class="line">    Foo &#123; y: <span class="number">2</span>, x: i &#125; =&gt; <span class="built_in">println!</span>(<span class="string">&quot;y is 2, i = &#123;:?&#125;&quot;</span>, i),</span><br><span class="line"></span><br><span class="line">    <span class="comment">// and you can also ignore some variables:</span></span><br><span class="line">    Foo &#123; y, .. &#125; =&gt; <span class="built_in">println!</span>(<span class="string">&quot;y = &#123;&#125;, we don&#x27;t care about x&quot;</span>, y),</span><br><span class="line">    <span class="comment">// this will give an error: pattern does not mention field `x`</span></span><br><span class="line">    <span class="comment">//Foo &#123; y &#125; =&gt; println!(&quot;y = &#123;&#125;&quot;, y),</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
 </ul>
@@ -481,7 +593,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2022/02/12/Hello%20World/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/02/12/hello-world/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -495,7 +607,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/02/12/Hello%20World/" class="post-title-link" itemprop="url">Hello World</a>
+            <a href="/2022/02/12/hello-world/" class="post-title-link" itemprop="url">Hello World</a>
         </h2>
 
         <div class="post-meta">
@@ -611,14 +723,14 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">2</span>
+          <span class="site-state-item-count">3</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">2</span>
+        <span class="site-state-item-count">3</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
