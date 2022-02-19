@@ -20,28 +20,35 @@
     var CONFIG = {"hostname":"example.com","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
-  <meta property="og:type" content="website">
-<meta property="og:title" content="THEWY">
-<meta property="og:url" content="http://example.com/index.html">
+  <meta name="description" content="RustRust是由Mozilla主导开发的通用、编译型编程语言。设计准则为“安全、并发、实用”，支持函数式、并发式、过程式以及面向对象的编程风格。 特性：  强类型静态语言  ​    编译时就知道变量类型的是静态，运行时才知道变量类型的是动态（解释性语言如python） ​    不允许隐式转换的是强类型，允许隐式转换的是弱类型   函数式编程 函数式编程中的函数不是指计算机中的函数，而是数学">
+<meta property="og:type" content="article">
+<meta property="og:title" content="rust study">
+<meta property="og:url" content="http://example.com/2022/02/19/rust-study/index.html">
 <meta property="og:site_name" content="THEWY">
+<meta property="og:description" content="RustRust是由Mozilla主导开发的通用、编译型编程语言。设计准则为“安全、并发、实用”，支持函数式、并发式、过程式以及面向对象的编程风格。 特性：  强类型静态语言  ​    编译时就知道变量类型的是静态，运行时才知道变量类型的是动态（解释性语言如python） ​    不允许隐式转换的是强类型，允许隐式转换的是弱类型   函数式编程 函数式编程中的函数不是指计算机中的函数，而是数学">
 <meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://pic1.zhimg.com/80/b0aeb7ffd1667b9162e5329154d43777_720w.jpg?source=1940ef5c">
+<meta property="article:published_time" content="2022-02-19T02:49:17.000Z">
+<meta property="article:modified_time" content="2022-02-19T02:53:27.355Z">
 <meta property="article:author" content="WY">
+<meta property="article:tag" content="工作笔记">
 <meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://pic1.zhimg.com/80/b0aeb7ffd1667b9162e5329154d43777_720w.jpg?source=1940ef5c">
 
-<link rel="canonical" href="http://example.com/">
+<link rel="canonical" href="http://example.com/2022/02/19/rust-study/">
 
 
 <script id="page-configurations">
   // https://hexo.io/docs/variables.html
   CONFIG.page = {
     sidebar: "",
-    isHome : true,
-    isPost : false,
+    isHome : false,
+    isPost : true,
     lang   : 'en'
   };
 </script>
 
-  <title>THEWY</title>
+  <title>rust study | THEWY</title>
   
 
 
@@ -149,9 +156,10 @@
         <div class="content-wrap">
           
 
-          <div class="content index posts-expand">
+          <div class="content post posts-expand">
             
-      
+
+    
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
@@ -167,10 +175,9 @@
       <meta itemprop="name" content="THEWY">
     </span>
       <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/02/19/rust-study/" class="post-title-link" itemprop="url">rust study</a>
-        </h2>
+        <h1 class="post-title" itemprop="name headline">
+          rust study
+        </h1>
 
         <div class="post-meta">
             <span class="post-meta-item">
@@ -203,7 +210,7 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="Rust"><a href="#Rust" class="headerlink" title="Rust"></a>Rust</h1><p>Rust是由Mozilla主导开发的通用、编译型编程语言。设计准则为“安全、并发、实用”，支持函数式、并发式、过程式以及面向对象的编程风格。</p>
+        <h1 id="Rust"><a href="#Rust" class="headerlink" title="Rust"></a>Rust</h1><p>Rust是由Mozilla主导开发的通用、编译型编程语言。设计准则为“安全、并发、实用”，支持函数式、并发式、过程式以及面向对象的编程风格。</p>
 <p>特性：</p>
 <ul>
 <li>强类型静态语言</li>
@@ -463,89 +470,33 @@
 <p><a target="_blank" rel="noopener" href="https://doc.rust-lang.org/rust-by-example/">https://doc.rust-lang.org/rust-by-example/</a>  官方文档，绝大部分语法的example在这里面，不记得某个基础操作时来这里迅速找例子</p>
 <p><a target="_blank" rel="noopener" href="https://doc.rust-lang.org/stable/book/title-page.html">https://doc.rust-lang.org/stable/book/title-page.html</a>  The Book， 官方圣经级别，不好读</p>
 
-      
     </div>
 
     
     
     
+
       <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
+          <div class="post-tags">
+              <a href="/tags/%E5%B7%A5%E4%BD%9C%E7%AC%94%E8%AE%B0/" rel="tag"># 工作笔记</a>
+          </div>
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2022/02/12/Hello%20World/">
+        
 
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="WY">
-      <meta itemprop="description" content="">
-    </span>
 
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="THEWY">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/02/12/Hello%20World/" class="post-title-link" itemprop="url">Hello World</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-              
-
-              <time title="Created: 2022-02-12 10:47:47 / Modified: 12:03:45" itemprop="dateCreated datePublished" datetime="2022-02-12T10:47:47+08:00">2022-02-12</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">In</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/thoughts/" itemprop="url" rel="index"><span itemprop="name">thoughts</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p><strong>学而不思则罔</strong>，<strong>思而不学则殆</strong></p>
-
-      
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/12/Hello%20World/" rel="prev" title="Hello World">
+      <i class="fa fa-chevron-left"></i> Hello World
+    </a></div>
+      <div class="post-nav-item"></div>
     </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
       </footer>
+    
   </article>
   
   
-  
-
-
   
 
 
@@ -598,6 +549,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Rust"><span class="nav-number">1.</span> <span class="nav-text">Rust</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%89%E8%A3%85"><span class="nav-number">1.1.</span> <span class="nav-text">安装</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Basic"><span class="nav-number">1.2.</span> <span class="nav-text">Basic</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%B1%BB%E5%9E%8B"><span class="nav-number">1.2.1.</span> <span class="nav-text">类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B5%8B%E5%80%BC"><span class="nav-number">1.2.2.</span> <span class="nav-text">赋值</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A1%A8%E8%BE%BE%E5%BC%8F"><span class="nav-number">1.2.3.</span> <span class="nav-text">表达式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%A7%E5%88%B6"><span class="nav-number">1.2.4.</span> <span class="nav-text">控制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%87%BD%E6%95%B0"><span class="nav-number">1.2.5.</span> <span class="nav-text">函数</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Ownership-and-moves"><span class="nav-number">1.3.</span> <span class="nav-text">Ownership and moves</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Borrowing"><span class="nav-number">1.4.</span> <span class="nav-text">Borrowing</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Methods"><span class="nav-number">1.5.</span> <span class="nav-text">Methods</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Trait"><span class="nav-number">1.6.</span> <span class="nav-text">Trait</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Trait-%E5%AE%9E%E7%8E%B0rust%E7%9A%84%E5%A4%9A%E6%80%81"><span class="nav-number">1.6.0.1.</span> <span class="nav-text">Trait 实现rust的多态</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#static-dispatch-vs-dynamic-dispatch"><span class="nav-number">1.6.1.</span> <span class="nav-text">static dispatch vs dynamic dispatch</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Closures"><span class="nav-number">1.7.</span> <span class="nav-text">Closures</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TEST"><span class="nav-number">1.8.</span> <span class="nav-text">TEST</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B9%B6%E5%8F%91"><span class="nav-number">1.9.</span> <span class="nav-text">并发</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B5%84%E6%96%99"><span class="nav-number">1.10.</span> <span class="nav-text">资料</span></a></li></ol></li></ol></div>
       </div>
       <!--/noindex-->
 
