@@ -155,6 +155,143 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/03/17/apollo-canbus-study/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="WY">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="THEWY">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/17/apollo-canbus-study/" class="post-title-link" itemprop="url">apollo canbus study</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+              
+
+              <time title="Created: 2022-03-17 15:22:20 / Modified: 15:25:08" itemprop="dateCreated datePublished" datetime="2022-03-17T15:22:20+08:00">2022-03-17</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Autonomous-Driving/" itemprop="url" rel="index"><span itemprop="name">Autonomous Driving</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="canbus"><a href="#canbus" class="headerlink" title="canbus"></a>canbus</h1><h3 id="底层can"><a href="#底层can" class="headerlink" title="底层can"></a>底层can</h3><p>CanClient是底层can的抽象类，表示某一种can设备的接口</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">CanClient</span> &#123;</span><br><span class="line">    <span class="function"><span class="keyword">virtual</span> <span class="type">bool</span> <span class="title">Init</span><span class="params">(<span class="type">const</span> CANCardParameter &amp;parameter)</span> </span>= <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">virtual</span> apollo::<span class="function">common::ErrorCode <span class="title">Start</span><span class="params">()</span> </span>= <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">virtual</span> apollo::<span class="function">common::ErrorCode <span class="title">Send</span><span class="params">(<span class="type">const</span> std::vector&lt;CanFrame&gt; &amp;frames,</span></span></span><br><span class="line"><span class="params"><span class="function">                                         <span class="type">int32_t</span> *<span class="type">const</span> frame_num)</span> </span>= <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">virtual</span> apollo::<span class="function">common::ErrorCode <span class="title">Receive</span><span class="params">(std::vector&lt;CanFrame&gt; *<span class="type">const</span> frames,</span></span></span><br><span class="line"><span class="params"><span class="function">                                            <span class="type">int32_t</span> *<span class="type">const</span> frame_num)</span> </span>= <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>can client由工厂模式创建，不同参数指定不同 can client</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">auto</span> can_factory = CanClientFactory::<span class="built_in">Instance</span>();</span><br><span class="line">can_factory-&gt;<span class="built_in">RegisterCanClients</span>();</span><br><span class="line">can_client_ = can_factory-&gt;<span class="built_in">CreateCANClient</span>(canbus_conf_.<span class="built_in">can_card_parameter</span>());</span><br></pre></td></tr></table></figure>
+
+<p>以socket为例</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">SocketCanClientRaw</span> : <span class="keyword">public</span> CanClient</span><br></pre></td></tr></table></figure>
+
+<p>继承了CanClient，实现了其中的虚函数，主要就是调用linux原生的socket api</p>
+<h3 id="底盘数据抽象"><a href="#底盘数据抽象" class="headerlink" title="底盘数据抽象"></a>底盘数据抽象</h3><p>不同车辆底盘数据、协议不同，使用了vehicle factory来创建不同车辆的 factory</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">VehicleFactory vehicle_factory;</span><br><span class="line">vehicle_factory.<span class="built_in">RegisterVehicleFactory</span>();</span><br><span class="line"><span class="keyword">auto</span> vehicle_object =</span><br><span class="line">    vehicle_factory.<span class="built_in">CreateVehicle</span>(canbus_conf_.<span class="built_in">vehicle_parameter</span>());</span><br></pre></td></tr></table></figure>
+
+<p>每一个车型的factory拥有自己的 controller 和 message manager</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">message_manager_ = vehicle_object-&gt;<span class="built_in">CreateMessageManager</span>();</span><br><span class="line">vehicle_controller_ = vehicle_object-&gt;<span class="built_in">CreateVehicleController</span>();</span><br></pre></td></tr></table></figure>
+
+<p>其中controller似乎用于填pb等等事情的</p>
+<p>message_manager则用于管理各个信号的decode与encode</p>
+<p>以”ch vehicle”为例子，</p>
+<p>工厂类：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">ChVehicleFactory</span> : <span class="keyword">public</span> AbstractVehicleFactory</span><br></pre></td></tr></table></figure>
+
+<p>controller类：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">ChController</span> <span class="keyword">final</span> : <span class="keyword">public</span> VehicleController</span><br></pre></td></tr></table></figure>
+
+<p>message manager类：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">ChMessageManager</span> : <span class="keyword">public</span> MessageManager&lt;::apollo::canbus::ChassisDetail&gt;</span><br></pre></td></tr></table></figure>
+
+<p>先看下message manager的构造：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">ChMessageManager::<span class="built_in">ChMessageManager</span>() &#123;</span><br><span class="line">  <span class="comment">// Control Messages</span></span><br><span class="line">  <span class="built_in">AddSendProtocolData</span>&lt;Brakecommand111, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddSendProtocolData</span>&lt;Controlcommand115, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddSendProtocolData</span>&lt;Gearcommand114, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddSendProtocolData</span>&lt;Steercommand112, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddSendProtocolData</span>&lt;Throttlecommand110, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddSendProtocolData</span>&lt;Turnsignalcommand113, <span class="literal">true</span>&gt;();</span><br><span class="line"></span><br><span class="line">  <span class="comment">// Report Messages</span></span><br><span class="line">  <span class="built_in">AddRecvProtocolData</span>&lt;Brakestatus511, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddRecvProtocolData</span>&lt;Ecustatus1515, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddRecvProtocolData</span>&lt;Ecustatus2516, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddRecvProtocolData</span>&lt;Ecustatus3517, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddRecvProtocolData</span>&lt;Gearstatus514, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddRecvProtocolData</span>&lt;Steerstatus512, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddRecvProtocolData</span>&lt;Throttlestatus510, <span class="literal">true</span>&gt;();</span><br><span class="line">  <span class="built_in">AddRecvProtocolData</span>&lt;Turnsignalstatus513, <span class="literal">true</span>&gt;();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到message manager中添加了该vehicle的各个收发信号</p>
+<p>以<code>Brakestatus511</code>信号为例</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">Brakestatus511</span> : <span class="keyword">public</span> ::apollo::drivers::canbus::ProtocolData&lt;</span><br><span class="line">                           ::apollo::canbus::ChassisDetail&gt;</span><br></pre></td></tr></table></figure>
+
+<p>实现了 parse函数</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">Brakestatus511::Parse</span><span class="params">(<span class="type">const</span> std::<span class="type">uint8_t</span>* bytes, <span class="type">int32_t</span> length,</span></span></span><br><span class="line"><span class="params"><span class="function">                           ChassisDetail* chassis)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">  chassis-&gt;<span class="built_in">mutable_ch</span>()-&gt;<span class="built_in">mutable_brake_status__511</span>()-&gt;<span class="built_in">set_brake_pedal_en_sts</span>(</span><br><span class="line">      <span class="built_in">brake_pedal_en_sts</span>(bytes, length));</span><br><span class="line">  chassis-&gt;<span class="built_in">mutable_ch</span>()-&gt;<span class="built_in">mutable_brake_status__511</span>()-&gt;<span class="built_in">set_brake_pedal_sts</span>(</span><br><span class="line">      <span class="built_in">brake_pedal_sts</span>(bytes, length));</span><br><span class="line">  chassis-&gt;<span class="built_in">mutable_ch</span>()-&gt;<span class="built_in">mutable_brake_status__511</span>()-&gt;<span class="built_in">set_brake_err</span>(</span><br><span class="line">      <span class="built_in">brake_err</span>(bytes, length));</span><br><span class="line">  chassis-&gt;<span class="built_in">mutable_ch</span>()-&gt;<span class="built_in">mutable_brake_status__511</span>()-&gt;<span class="built_in">set_emergency_btn_env</span>(</span><br><span class="line">      <span class="built_in">emergency_btn_env</span>(bytes, length));</span><br><span class="line">  chassis-&gt;<span class="built_in">mutable_ch</span>()-&gt;<span class="built_in">mutable_brake_status__511</span>()-&gt;<span class="built_in">set_front_bump_env</span>(</span><br><span class="line">      <span class="built_in">front_bump_env</span>(bytes, length));</span><br><span class="line">  chassis-&gt;<span class="built_in">mutable_ch</span>()-&gt;<span class="built_in">mutable_brake_status__511</span>()-&gt;<span class="built_in">set_back_bump_env</span>(</span><br><span class="line">      <span class="built_in">back_bump_env</span>(bytes, length));</span><br><span class="line">  chassis-&gt;<span class="built_in">mutable_ch</span>()-&gt;<span class="built_in">mutable_brake_status__511</span>()-&gt;<span class="built_in">set_overspd_env</span>(</span><br><span class="line">      <span class="built_in">overspd_env</span>(bytes, length));</span><br><span class="line">  chassis-&gt;<span class="built_in">mutable_check_response</span>()-&gt;<span class="built_in">set_is_esp_online</span>(</span><br><span class="line">      <span class="built_in">brake_pedal_en_sts</span>(bytes, length) == <span class="number">1</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>某个信号的解析如下，这里就是从can frame中按照dbc定义的信号格式解析了</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// config detail: &#123;&#x27;description&#x27;: &#x27;brake pedal enable bit(Status)&#x27;, &#x27;enum&#x27;: &#123;0:</span></span><br><span class="line"><span class="comment">// &#x27;BRAKE_PEDAL_EN_STS_DISABLE&#x27;, 1: &#x27;BRAKE_PEDAL_EN_STS_ENABLE&#x27;, 2:</span></span><br><span class="line"><span class="comment">// &#x27;BRAKE_PEDAL_EN_STS_TAKEOVER&#x27;&#125;, &#x27;precision&#x27;: 1.0, &#x27;len&#x27;: 8, &#x27;name&#x27;:</span></span><br><span class="line"><span class="comment">// &#x27;brake_pedal_en_sts&#x27;, &#x27;is_signed_var&#x27;: False, &#x27;offset&#x27;: 0.0,</span></span><br><span class="line"><span class="comment">// &#x27;physical_range&#x27;: &#x27;[0|1]&#x27;, &#x27;bit&#x27;: 0, &#x27;type&#x27;: &#x27;enum&#x27;, &#x27;order&#x27;: &#x27;intel&#x27;,</span></span><br><span class="line"><span class="comment">// &#x27;physical_unit&#x27;: &#x27;&#x27;&#125;</span></span><br><span class="line"><span class="function">Brake_status__511::Brake_pedal_en_stsType <span class="title">Brakestatus511::brake_pedal_en_sts</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> std::<span class="type">uint8_t</span>* bytes, <span class="type">int32_t</span> length)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">  <span class="function">Byte <span class="title">t0</span><span class="params">(bytes + <span class="number">0</span>)</span></span>;</span><br><span class="line">  <span class="type">int32_t</span> x = t0.<span class="built_in">get_byte</span>(<span class="number">0</span>, <span class="number">8</span>);</span><br><span class="line">  Brake_status__511::Brake_pedal_en_stsType ret =</span><br><span class="line">      <span class="built_in">static_cast</span>&lt;Brake_status__511::Brake_pedal_en_stsType&gt;(x);</span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>再来看看controller类的实现，有一个重要函数</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * @brief calculate and return the chassis.</span></span><br><span class="line"><span class="comment"> * @returns a copy of chassis. Use copy here to avoid multi-thread issues.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function">Chassis <span class="title">chassis</span><span class="params">()</span> <span class="keyword">override</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>主要做的事情就是从message_manager中获得sensor data，然后填到自己的<code>Chassis chassis_;</code>变量中并返回，后面可以看到sensor data其实是前面parse函数填的内容</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ChassisDetail chassis_detail;</span><br><span class="line">message_manager_-&gt;<span class="built_in">GetSensorData</span>(&amp;chassis_detail);</span><br></pre></td></tr></table></figure>
+
+
+
+<p>总结一下，单以接收can信号为例，几个关键点</p>
+<p>一种车型对应一个factory，该facotry会产生controller和message manager对象</p>
+<p>其中 message manager封装了车身信号的decode和encode函数</p>
+<p>controller则负责从message manager中获取解析后的数据，并存到<code>Chassis chassis_</code>（这是一个pb 结构体），然后提供API给外部使用</p>
+<h3 id="真正的报文接收处理流程"><a href="#真正的报文接收处理流程" class="headerlink" title="真正的报文接收处理流程"></a>真正的报文接收处理流程</h3><p>can报文的接收处理由CanReceiver类管理</p>
+<p>CanReceiver由can_client和message manager初始化</p>
+<p>并维护一个接收线程</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">typename</span> SensorType&gt;</span><br><span class="line"><span class="type">void</span> CanReceiver&lt;SensorType&gt;::<span class="built_in">RecvThreadFunc</span>()</span><br></pre></td></tr></table></figure>
+
+<p>在这个线程loop中</p>
+<p>使用can_client类的接口接收can frame，这里实际就会调用到socket api</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">can_client_-&gt;<span class="built_in">Receive</span>(&amp;buf, &amp;frame_num)</span><br></pre></td></tr></table></figure>
+
+<p>使用message manager 解析刚刚收到的can frame，这里实际就会调用到对应message manager中的信号解析函数</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">pt_manager_-&gt;<span class="built_in">Parse</span>(uid, data, len); <span class="comment">//以Brakestatus511信号为例就是上面贴出来的parse函数了</span></span><br></pre></td></tr></table></figure>
+
+<p>在这步parse之后，数据已经填到sensor data了</p>
+<h3 id="数据的发布"><a href="#数据的发布" class="headerlink" title="数据的发布"></a>数据的发布</h3><p>CanBusComponent类：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">CanbusComponent::PublishChassis</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  Chassis chassis = vehicle_controller_-&gt;<span class="built_in">chassis</span>();</span><br><span class="line">  common::util::<span class="built_in">FillHeader</span>(node_-&gt;<span class="built_in">Name</span>(), &amp;chassis);</span><br><span class="line">  chassis_writer_-&gt;<span class="built_in">Write</span>(chassis);</span><br><span class="line">  ADEBUG &lt;&lt; chassis.<span class="built_in">ShortDebugString</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>从controller中调用<code>chassis</code>接口，得到chassis数据，然后就使用protobuf writer发布出去了</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
     <link itemprop="mainEntityOfPage" href="http://example.com/2022/02/19/c-abnormal-exit/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -723,20 +860,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">3</span>
+          <span class="site-state-item-count">4</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-count">4</span>
         <span class="site-state-item-name">categories</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-count">2</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
